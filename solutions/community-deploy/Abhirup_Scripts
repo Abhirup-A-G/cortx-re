@@ -83,18 +83,18 @@ docker run --name release-packages-server -v /var/artifacts/0/:/usr/share/nginx/
 function NginxValidation() {
         docker ps | grep -iw 'nginx'
         if [ $? -eq 0 ]; then
-            curl -L http://$HOSTNAME/RELEASE.INFO
+            curl -L http://$(ip route get 8.8.8.8| cut -d' ' -f7)/RELEASE.INFO
         else
             docker restart nginx
             sleep 10
             docker ps | grep -iw 'nginx'
                 if [ $? -eq 0 ]; then
-                    curl -L http://$HOSTNAME/RELEASE.INFO
+                    curl -L http://$(ip route get 8.8.8.8| cut -d' ' -f7)/RELEASE.INFO
                 else
                     docker run --name release-packages-server -v /var/artifacts/0/:/usr/share/nginx/html:ro -d -p 80:80 nginx
                     docker ps | grep -iw 'nginx'
                         if [ $? -eq 0 ]; then
-                            curl -L http://$HOSTNAME/RELEASE.INFO
+                            curl -L http://$(ip route get 8.8.8.8| cut -d' ' -f7)/RELEASE.INFO
                         else
                             exit 1
                         fi                
@@ -102,3 +102,17 @@ function NginxValidation() {
         fi        
 }
 NginxValidation
+
+# clone cortx-re repository & add extra_hosts parameter in docker-compose.yml for all the services to run build.sh
+
+git clone https://github.com/Seagate/cortx-re && cd cortx-re/docker/cortx-deploy/
+sed -i "/^[[:space:]].*TAG/a\    extra_hosts:\n      - \"$(ip route get 8.8.8.8| cut -d' ' -f7)"\" docker-compose.yml
+cat docker-compose.yml | egrep -iw "extra_hosts|$(ip route get 8.8.8.8| cut -d' ' -f7)"
+        if [ $? -eq 0 ]; then
+            ./build.sh -b http://$(ip route get 8.8.8.8| cut -d' ' -f7) -o rockylinux-8.4 -s all -e opensource-ci
+        else
+            sed -i "/^[[:space:]].*TAG/a\    extra_hosts:\n      - \"$(ip route get 8.8.8.8| cut -d' ' -f7)"\" docker-compose.yml
+            ./build.sh -b http://$(ip route get 8.8.8.8| cut -d' ' -f7) -o rockylinux-8.4 -s all -e opensource-ci
+        fi
+# Show recently generated cortx-all images
+docker images --format='{{.Repository}}:{{.Tag}} {{.CreatedAt}}' --filter=reference='cortx-*'
