@@ -46,7 +46,7 @@ cat values.yaml | egrep -iw "url: |apiKey: |userKey: |pullSecret: |productName:|
 popd
 #Pulling whitesource images https://ghcr.io/v2/
 docker pull ghcr.io/seagate/whitesource-pre-configure:20.11.1 && docker pull ghcr.io/seagate/whitesource-main:20.11.1 && docker pull ghcr.io/seagate/whitesource-worker:20.11.1
-
+docker logout
 #Uninstall/stop existing scanner
 #pushd root/ws-k8s-agent
 #helm uninstall whitesource-k8s
@@ -56,5 +56,4 @@ add_common_separator "Run helm uninstall whitesource-k8s to stop existing scanne
 pushd ws-k8s-agent
 #helm install whitesource-k8s ./helm-chart –wait
 #Kubectl get pods -n whitesource-namespace
-
 add_common_separator "Run helm install whitesource-k8s ./helm-chart –wait to setup whiteSource Containers & trigger the Scan"

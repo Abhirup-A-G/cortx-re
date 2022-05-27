@@ -18,7 +18,6 @@
 # please email opensource@seagate.com or cortx-questions@seagate.com.
 #
 
-
 source ../../solutions/kubernetes/functions.sh
 
 #variables
