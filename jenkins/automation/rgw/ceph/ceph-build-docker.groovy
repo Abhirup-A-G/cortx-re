@@ -29,8 +29,10 @@ pipeline {
     parameters {
         string(name: 'CORTX_RE_REPO', defaultValue: 'https://github.com/Seagate/cortx-re/', description: 'Repository for Cluster Setup scripts.', trim: true)
         string(name: 'CORTX_RE_BRANCH', defaultValue: 'main', description: 'Branch or GitHash for Cluster Setup scripts.', trim: true)
-        string(name: 'CEPH_REPO', defaultValue: 'ceph/ceph', description: 'Repository for Cluster Setup scripts.', trim: true)
+        string(name: 'CEPH_REPO', defaultValue: 'https://github.com/ceph/ceph', description: 'Repository for Cluster Setup scripts.', trim: true)
         string(name: 'CEPH_BRANCH', defaultValue: 'quincy', description: 'Branch or GitHash for Cluster Setup scripts.', trim: true)
+        booleanParam(name: 'CORTX_RGW_OPTIMIZED_BUILD', defaultValue: false, description: 'Selecting this option will enable cortx-rgw build optimization.')
+        booleanParam(name: 'INSTALL_MOTR', defaultValue: false, description: 'Selecting this option will install motr for builds with motr backend.')
 
         choice(
             name: 'BUILD_OS',
@@ -57,6 +59,8 @@ pipeline {
                     export CEPH_REPO=${CEPH_REPO}
                     export CEPH_BRANCH=${CEPH_BRANCH}
                     export BUILD_OS=${BUILD_OS}
+                    export CORTX_RGW_OPTIMIZED_BUILD=${CORTX_RGW_OPTIMIZED_BUILD}
+                    export INSTALL_MOTR=${INSTALL_MOTR}
                     bash ceph-binary-build.sh --ceph-build-env ${BUILD_LOCATION}
                 popd
                 """

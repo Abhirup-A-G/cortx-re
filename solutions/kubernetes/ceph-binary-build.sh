@@ -23,7 +23,8 @@ source functions.sh
 ACTION="$1"
 BUILD_LOCATION="$2"
 MOUNT="$3"
-REPO_COMPONENT=${CEPH_REPO#*/}
+REPO_COMPONENT=${CEPH_REPO##*/}
+REPO_COMPONENT="${REPO_COMPONENT%.*}"
 
 function usage() {
     cat << HEREDOC
@@ -43,27 +44,35 @@ fi
 
 function check_params() {
     add_primary_separator "\t\tChecking parameters"
-    if [ -z "$CEPH_REPO" ]; then echo "CEPH_REPO not provided. Using default: ceph/ceph ";CEPH_REPO="ceph/ceph"; fi
+    if [ -z "$CEPH_REPO" ]; then echo "CEPH_REPO not provided. Using default: ceph/ceph ";CEPH_REPO="https://github.com/ceph/ceph"; fi
     if [ -z "$CEPH_BRANCH" ]; then echo "CEPH_BRANCH not provided. Using default: quincy";CEPH_BRANCH="quincy"; fi
     if [ -z "$BUILD_OS" ]; then echo "BUILD_OS not provided. Using default: centos";BUILD_OS="centos"; fi
     if [ -z "$BUILD_LOCATION" ]; then echo "BUILD_LOCATION for container to mount not provided. Using default: /var/log/ceph-build/${BUILD_NUMBER}";BUILD_LOCATION="/var/log/ceph-build/${BUILD_NUMBER}"; fi
     if [ -z "$REPO_COMPONENT" ]; then echo "REPO_COMPONENT for ceph repo not provided. Using default: ceph";REPO_COMPONENT="ceph"; fi
+    if [ -z "$CORTX_RGW_OPTIMIZED_BUILD" ]; then echo "CORTX_RGW_OPTIMIZED_BUILD for ceph packages not provided. Using default: false";CORTX_RGW_OPTIMIZED_BUILD="false"; fi
+    if [ -z "$INSTALL_MOTR" ]; then echo "INSTALL_MOTR for ceph build not provided. Using default: false";INSTALL_MOTR="false"; fi
+    if [ -z "$PR_BUILD" ]; then echo "PR_BUILD for ceph build not provided. Using default: false";PR_BUILD="false"; fi
+    if [ -z "$PR_ID" ]; then echo "PR_ID for ceph build not provided. Using default: false";PR_ID="0"; fi
     if [ -z "$MOUNT" ]; then echo "MOUNT for uploading packages is not provided. Using default: cortx-storage.colo.seagate.com:/mnt/data1/releases/ceph";MOUNT="cortx-storage.colo.seagate.com:/mnt/data1/releases/ceph"; fi
     if [ -z "$build_upload_dir" ]; then echo "build_upload_dir for ceph packages not provided. Using default: /mnt/bigstorage/releases/ceph";build_upload_dir="/mnt/bigstorage/releases/ceph"; fi
 
    echo -e "\n\n########################################################################"
-   echo -e "# CEPH_REPO         : $CEPH_REPO                  "
-   echo -e "# CEPH_BRANCH       : $CEPH_BRANCH                "
-   echo -e "# BUILD_OS          : $BUILD_OS                   "
-   echo -e "# BUILD_LOCATION    : $BUILD_LOCATION             "
-   echo -e "# REPO_COMPONENT    : $REPO_COMPONENT             "
-   echo -e "# MOUNT             : $MOUNT                      "
-   echo -e "# build_upload_dir  : $build_upload_dir           "
+   echo -e "# CEPH_REPO                 : $CEPH_REPO                  "
+   echo -e "# CEPH_BRANCH               : $CEPH_BRANCH                "
+   echo -e "# BUILD_OS                  : $BUILD_OS                   "
+   echo -e "# BUILD_LOCATION            : $BUILD_LOCATION             "
+   echo -e "# REPO_COMPONENT            : $REPO_COMPONENT             "
+   echo -e "# CORTX_RGW_OPTIMIZED_BUILD : $CORTX_RGW_OPTIMIZED_BUILD  "
+   echo -e "# INSTALL_MOTR              : $INSTALL_MOTR               "
+   echo -e "# PR_BUILD                  : $PR_BUILD                   "
+   echo -e "# PR_ID                     : $PR_ID                      "
+   echo -e "# MOUNT                     : $MOUNT                      "
+   echo -e "# build_upload_dir          : $build_upload_dir           "
    echo -e "#########################################################################"
 }
 
 function prereq() {
-    add_primary_separator "\t\tRunning Preequisites"
+    add_primary_separator "\t\tRunning Prerequisites"
 
     mkdir -p "$BUILD_LOCATION"
 
@@ -96,7 +105,7 @@ function prvsn_env() {
             docker pull ubuntu:20.04
         fi
         add_secondary_separator "Run Ubuntu 20.04 container and run build script"
-        docker run --rm -t -e CEPH_REPO="$CEPH_REPO" -e CEPH_BRANCH="$CEPH_BRANCH" -e BUILD_OS="$BUILD_OS" -e REPO_COMPONENT="$REPO_COMPONENT" -e BUILD_LOCATION="/home" -e branch="$branch" -e os_version="$os_version" -e release_tag="$release_tag" -v "$BUILD_LOCATION/$BUILD_OS":/home --name "$REPO_COMPONENT-$BUILD_NUMBER" --entrypoint /bin/bash ubuntu:20.04 -c "pushd /home && ./build.sh --env-build && popd"
+        docker run --rm -t -e CEPH_REPO="$CEPH_REPO" -e CEPH_BRANCH="$CEPH_BRANCH" -e BUILD_OS="$BUILD_OS" -e REPO_COMPONENT="$REPO_COMPONENT" -e BUILD_LOCATION="/home" -e CORTX_RGW_OPTIMIZED_BUILD="$CORTX_RGW_OPTIMIZED_BUILD" -e branch="$branch" -e os_version="$os_version" -e release_tag="$release_tag" -e INSTALL_MOTR=$INSTALL_MOTR -e PR_BUILD="$PR_BUILD" -e PR_ID="$PR_ID" -v "$BUILD_LOCATION/$BUILD_OS":/home --name "$REPO_COMPONENT-$BUILD_NUMBER" --entrypoint /bin/bash ubuntu:20.04 -c "pushd /home && ./build.sh --env-build && popd"
 
     elif [[ "$BUILD_OS" == "centos-8" ]]; then
         if [[ $(docker images --format "{{.Repository}}:{{.Tag}}" --filter reference=centos:8) != "centos:8" ]]; then
@@ -105,14 +114,14 @@ function prvsn_env() {
         docker pull quay.io/centos/centos:stream8
         add_secondary_separator "Run CentOS 8 container and run build script"
         # docker run --rm -t -e CEPH_REPO=$CEPH_REPO -e CEPH_BRANCH=$CEPH_BRANCH -e BUILD_OS=$BUILD_OS -e REPO_COMPONENT=$REPO_COMPONENT -e BUILD_LOCATION="/home" -v "$BUILD_LOCATION/$BUILD_OS":/home --name "$REPO_COMPONENT-$BUILD_NUMBER" --entrypoint /bin/bash centos:8 -c "pushd /home && ./build.sh --env-build && popd"
-        docker run --rm -t -e CEPH_REPO="$CEPH_REPO" -e CEPH_BRANCH="$CEPH_BRANCH" -e BUILD_OS="$BUILD_OS" -e REPO_COMPONENT="$REPO_COMPONENT" -e BUILD_LOCATION="/home" -e branch="$branch" -e os_version="$os_version" -e release_tag="$release_tag" -v "$BUILD_LOCATION/$BUILD_OS":/home --name "$REPO_COMPONENT-$BUILD_NUMBER" --entrypoint /bin/bash quay.io/centos/centos:stream8 -c "pushd /home && ./build.sh --env-build && popd"
+        docker run --rm -t -e CEPH_REPO="$CEPH_REPO" -e CEPH_BRANCH="$CEPH_BRANCH" -e BUILD_OS="$BUILD_OS" -e REPO_COMPONENT="$REPO_COMPONENT" -e BUILD_LOCATION="/home" -e CORTX_RGW_OPTIMIZED_BUILD="$CORTX_RGW_OPTIMIZED_BUILD" -e branch="$branch" -e os_version="$os_version" -e release_tag="$release_tag" -e INSTALL_MOTR=$INSTALL_MOTR -e PR_BUILD="$PR_BUILD" -e PR_ID="$PR_ID" -v "$BUILD_LOCATION/$BUILD_OS":/home --name "$REPO_COMPONENT-$BUILD_NUMBER" --entrypoint /bin/bash quay.io/centos/centos:stream8 -c "pushd /home && ./build.sh --env-build && popd"
 
     elif [[ "$BUILD_OS" == "rockylinux-8.4" ]]; then
         if [[ $(docker images --format "{{.Repository}}:{{.Tag}}" --filter reference=rockylinux:8) != "rockylinux:8" ]]; then
             docker pull rockylinux:8
         fi
         add_secondary_separator "Run Rocky Linux 8 container and run build script"
-        docker run --rm -t -e CEPH_REPO="$CEPH_REPO" -e CEPH_BRANCH="$CEPH_BRANCH" -e BUILD_OS="$BUILD_OS" -e REPO_COMPONENT="$REPO_COMPONENT" -e BUILD_LOCATION="/home" -e branch="$branch" -e os_version="$os_version" -e release_tag="$release_tag" -v "$BUILD_LOCATION/$BUILD_OS":/home --name "$REPO_COMPONENT-$BUILD_NUMBER" --entrypoint /bin/bash rockylinux:8 -c "pushd /home && ./build.sh --env-build && popd"
+        docker run --rm -t -e CEPH_REPO="$CEPH_REPO" -e CEPH_BRANCH="$CEPH_BRANCH" -e BUILD_OS="$BUILD_OS" -e REPO_COMPONENT="$REPO_COMPONENT" -e BUILD_LOCATION="/home" -e CORTX_RGW_OPTIMIZED_BUILD="$CORTX_RGW_OPTIMIZED_BUILD" -e branch="$branch" -e os_version="$os_version" -e release_tag="$release_tag" -e INSTALL_MOTR=$INSTALL_MOTR -e PR_BUILD="$PR_BUILD" -e PR_ID="$PR_ID" -v "$BUILD_LOCATION/$BUILD_OS":/home --name "$REPO_COMPONENT-$BUILD_NUMBER" --entrypoint /bin/bash rockylinux:8 -c "pushd /home && ./build.sh --env-build && popd"
 
     else
         add_secondary_separator "Failed to build ceph, container image not present."
@@ -133,14 +142,32 @@ function ceph_build() {
                 check_status
                 pushd "$BUILD_LOCATION"
                     add_common_separator "Clone Repo"
-                    git clone https://github.com/$CEPH_REPO -b $CEPH_BRANCH
+                    git clone $CEPH_REPO
+                    check_status
 
-                    if [[ $REPO_COMPONENT == "cortx-rgw" ]]; then
+                    if [[ "$INSTALL_MOTR" == true ]]; then
                         add_common_separator "cortx-motr dependencies no yet sorted on ubuntu"
                         exit 1
                     fi
 
                     pushd $REPO_COMPONENT
+                        if [[ "$PR_BUILD" == true ]]; then
+                            git fetch origin pull/"$PR_ID"/head:"pr-$PR_ID"
+                            check_status
+                            git checkout "pr-$PR_ID"
+                            check_status
+                            git log -1 --oneline
+                            check_status
+
+                        else
+                            git checkout $CEPH_BRANCH
+                            check_status
+                            git log -1 --oneline
+                            check_status
+                        fi
+
+                        echo "Checked out: $(git branch --show-current)"
+
                         add_common_separator "Checkout Submodules"
                         git submodule update --init --recursive
 
@@ -182,9 +209,10 @@ function ceph_build() {
                 dnf config-manager --set-enabled powertools
                 pushd "$BUILD_LOCATION"
                     add_common_separator "Clone Repo"
-                    git clone https://github.com/$CEPH_REPO -b $CEPH_BRANCH
+                    git clone $CEPH_REPO
+                    check_status
 
-                    if [[ $REPO_COMPONENT == "cortx-rgw" ]]; then
+                    if [[ "$INSTALL_MOTR" == true ]]; then
                         add_common_separator "Installing cortx-motr dependencies"
                         yum-config-manager --add-repo="http://cortx-storage.colo.seagate.com/releases/cortx/github/$branch/$os_version/$release_tag/cortx_iso/"
                         yum-config-manager --add-repo="http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/rockylinux/rockylinux-8.4-2.0.0-latest/"
@@ -192,6 +220,23 @@ function ceph_build() {
                     fi
 
                     pushd $REPO_COMPONENT
+                        if [[ "$PR_BUILD" == true ]]; then
+                            git fetch origin pull/"$PR_ID"/head:"pr-$PR_ID"
+                            check_status
+                            git checkout "pr-$PR_ID"
+                            check_status
+                            git log -1 --oneline
+                            check_status
+
+                        else
+                            git checkout $CEPH_BRANCH
+                            check_status
+                            git log -1 --oneline
+                            check_status
+                        fi
+
+                        echo "Checked out: $(git branch --show-current)"
+
                         add_common_separator "Checkout Submodules"
                         git submodule update --init --recursive
 
@@ -210,8 +255,13 @@ function ceph_build() {
 
                     pushd rpmbuild
                         add_common_separator "Start Build"
-                        rpmbuild --define "_topdir `pwd`" -ba SPECS/ceph.spec
-                        check_status "Build failed"
+                        if [[ "$CORTX_RGW_OPTIMIZED_BUILD" == true ]]; then
+                            rpmbuild --clean --rmsource --define "_unpackaged_files_terminate_build 0" --define "debug_package %{nil}" --define "_binary_payload w2T16.xzdio" --define "_topdir $(pwd)" --without seastar --without cephfs_java --without ceph_test_package --without selinux --without lttng  --without cephfs_shell  --without amqp_endpoint --without kafka_endpoint --without lua_packages --without zbd --without cmake_verbose_logging --without rbd_rwl_cache --without rbd_ssd_cache  --without system_pmdk --without jaeger --without ocf --without make_check -vv -ba SPECS/ceph.spec
+                            check_status "Build failed"
+                        else
+                            rpmbuild --define "_topdir `pwd`" -ba SPECS/ceph.spec
+                            check_status "Build failed"
+                        fi
                     popd
 
                     add_common_separator "List generated binary packages (*.rpm)"
@@ -228,16 +278,37 @@ function ceph_build() {
                 dnf config-manager --set-enabled powertools
                 pushd "$BUILD_LOCATION"
                     add_common_separator "Clone Repo"
-                    git clone https://github.com/$CEPH_REPO -b $CEPH_BRANCH
+                    git clone $CEPH_REPO
+                    check_status
 
-                    if [[ $REPO_COMPONENT == "cortx-rgw" ]]; then
+                    if [[ "$INSTALL_MOTR" == true ]]; then
                         add_common_separator "Installing cortx-motr dependencies"
                         yum-config-manager --add-repo="http://cortx-storage.colo.seagate.com/releases/cortx/github/$branch/$os_version/$release_tag/cortx_iso/"
+                        check_status "Failed to add motr repo"
                         yum-config-manager --add-repo="http://cortx-storage.colo.seagate.com/releases/cortx/third-party-deps/rockylinux/rockylinux-8.4-2.0.0-latest/"
+                        check_status "Failed to add motr repo"
                         yum install cortx-motr{,-devel} -y --nogpgcheck
+                        check_status "Failed to install cortx-motr"
                     fi
 
                     pushd $REPO_COMPONENT
+                        if [[ "$PR_BUILD" == true ]]; then
+                            git fetch origin pull/"$PR_ID"/head:"pr-$PR_ID"
+                            check_status
+                            git checkout "pr-$PR_ID"
+                            check_status
+                            git log -1 --oneline
+                            check_status
+
+                        else
+                            git checkout $CEPH_BRANCH
+                            check_status
+                            git log -1 --oneline
+                            check_status
+                        fi
+
+                        echo "Checked out: $(git branch --show-current)"
+
                         add_common_separator "Checkout Submodules"
                         git submodule update --init --recursive
 
@@ -261,8 +332,13 @@ function ceph_build() {
 
                     pushd rpmbuild
                         add_common_separator "Start Build"
-                        rpmbuild --define "_topdir `pwd`" -ba SPECS/ceph.spec
-                        check_status "Build failed"
+                        if [[ "$CORTX_RGW_OPTIMIZED_BUILD" == true ]]; then
+                            rpmbuild --clean --rmsource --define "_unpackaged_files_terminate_build 0" --define "debug_package %{nil}" --define "_binary_payload w2T16.xzdio" --define "_topdir $(pwd)" --without seastar --without cephfs_java --without ceph_test_package --without selinux --without lttng  --without cephfs_shell  --without amqp_endpoint --without kafka_endpoint --without lua_packages --without zbd --without cmake_verbose_logging --without rbd_rwl_cache --without rbd_ssd_cache  --without system_pmdk --without jaeger --without ocf --without make_check -vv -ba SPECS/ceph.spec
+                            check_status "Build failed"
+                        else
+                            rpmbuild --define "_topdir `pwd`" -ba SPECS/ceph.spec
+                            check_status "Build failed"
+                        fi
                     popd
 
                     add_common_separator "List generated binary packages (*.rpm)"
